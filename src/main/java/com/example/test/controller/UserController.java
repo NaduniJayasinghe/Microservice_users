@@ -1,0 +1,38 @@
+package com.example.test.controller;
+
+import com.example.test.dto.UserCreateRequest;
+import com.example.test.dto.UserDTO;
+import com.example.test.service.UserService;
+import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/users")
+public class UserController {
+
+    @Autowired
+    private UserService userService;
+
+    // CREATE (Stored Function)
+    @PostMapping
+    public ResponseEntity<Long> createUser(@RequestBody @Valid UserCreateRequest request) {
+        Long id = userService.createUser(request);
+        return ResponseEntity.ok(id);
+    }
+
+    // GET ALL (Using DB View view_all_users)
+    @GetMapping
+    public ResponseEntity<List<UserDTO>> getAllUsers() {
+        return ResponseEntity.ok(userService.getAllUsers());
+    }
+
+    // GET BY ID (Using DB View view_user_details)
+    @GetMapping("/{id}")
+    public ResponseEntity<UserDTO> getUserById(@PathVariable Long id) {
+        return ResponseEntity.ok(userService.getUserById(id));
+    }
+}
