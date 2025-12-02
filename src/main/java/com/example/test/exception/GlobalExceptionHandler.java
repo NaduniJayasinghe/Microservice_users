@@ -16,8 +16,18 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
                 .body(Map.of(
-                        "error", "Email already exists",
-                        "details", ex.getMostSpecificCause().getMessage()
+                        "error code",ex.getMessage(),
+                        "error message", "Email already exists"
                 ));
     }
+
+    @ExceptionHandler(DuplicateEmailException.class)
+    public ResponseEntity<?> handleDuplicateEmail(DuplicateEmailException ex) {
+        return ResponseEntity.status(400).body(
+                Map.of("error", "Email already exists")
+        );
+    }
+
+
+
 }

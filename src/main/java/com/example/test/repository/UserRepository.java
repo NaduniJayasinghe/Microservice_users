@@ -2,6 +2,7 @@ package com.example.test.repository;
 
 import com.example.test.dto.UserCreateRequest;
 import com.example.test.dto.UserDTO;
+import com.example.test.dto.UserUpdateRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.SqlParameter;
 import org.springframework.jdbc.core.simple.SimpleJdbcCall;
@@ -22,7 +23,9 @@ public class UserRepository {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    // ============= CREATE USING STORED FUNCTION ==================
+    // -------------------------------------------------------
+    // CREATE USING STORED FUNCTION
+    // -------------------------------------------------------
     @PostConstruct
     public void init() {
         createUserCall = new SimpleJdbcCall(jdbcTemplate)
@@ -47,8 +50,9 @@ public class UserRepository {
         return createUserCall.executeFunction(Long.class, params);
     }
 
-
-    // ================= GET ALL USERS (from view_all_users) ====================
+    // -------------------------------------------------------
+    // GET ALL USERS (VIEW)
+    // -------------------------------------------------------
     public List<UserDTO> getAllUsers() {
         String sql = "SELECT id, first_name, last_name, email, phone FROM view_all_users";
 
@@ -63,10 +67,15 @@ public class UserRepository {
         );
     }
 
-    // ================= GET USER BY ID (from view_user_details) ====================
+    // -------------------------------------------------------
+    // GET USER BY ID (VIEW)
+    // -------------------------------------------------------
     public UserDTO getUserById(Long id) {
-        String sql = "SELECT id, first_name, last_name, email, phone "
-                + "FROM view_user_details WHERE id = ?";
+        String sql = """
+                SELECT id, first_name, last_name, email, phone
+                FROM view_user_details
+                WHERE id = ?
+                """;
 
         return jdbcTemplate.queryForObject(sql, (rs, rowNum) ->
                 new UserDTO(
@@ -77,4 +86,45 @@ public class UserRepository {
                         rs.getString("phone")
                 ), id);
     }
+
+    // -------------------------------------------------------
+    // CHECK IF EMAIL ALREADY EXISTS FOR ANOTHER USER
+    // -------------------------------------------------------
+    public boolean emailExistsForAnotherUser(String email, Long id) {
+        String sql = "SELECT COUNT(*) FROM users WHERE email = ? AND id <> ?";
+        Integer count = jdbcTemplate.queryForObject(sql, Integer.class, email, id);
+        return count != null && count > 0;
+    }
+
+    // -------------------------------------------------------
+    // UPDATE USER (NORMAL UPDATE)
+    // -------------------------------------------------------
+    public boolean updateUser(Long id, UserUpdateRequest req) {
+        String sql = """
+                UPDATE users
+                SET first_name = ?, last_name = ?, email = ?, phone = ?
+                WHERE id = ?
+                """;
+
+        int rows = jdbcTemplate.update(sql,
+                req.getFirstName(),
+                req.getLastName(),
+                req.getEmail(),
+                req.getPhone(),
+                id);
+
+        return rows > 0;
+    }
+
+    // -------------------------------------------------------
+    // DELETE USER
+    // -------------------------------------------------------
+
+    public boolean deleteUser(Long id) {
+        String sql = "DELETE FROM users WHERE id = ?";
+        int rows = jdbcTemplate.update(sql, id);
+        return rows > 0;
+    }
+
+
 }
