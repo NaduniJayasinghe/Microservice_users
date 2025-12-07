@@ -22,6 +22,7 @@ public class UserService {
 
         try {
             return userRepository.createUser(request);
+            
         }catch (DuplicateKeyException e){
             throw new DuplicateKeyException("DUPLICATE_DATA_ERROR");
         }
@@ -47,6 +48,29 @@ public class UserService {
     public boolean deleteUser(Long id) {
         return userRepository.deleteUser(id);
     }
+
+    public List<UserDTO> getUsersPaginated(int page, int size, String sortBy, String direction) {
+
+        // allowed sorting fields
+        List<String> allowedSortFields = List.of("id", "first_name", "last_name", "email", "phone");
+
+        if (!allowedSortFields.contains(sortBy)) {
+            sortBy = "id"; // default
+        }
+
+        if (!direction.equalsIgnoreCase("asc") && !direction.equalsIgnoreCase("desc")) {
+            direction = "asc"; // default
+        }
+
+        return userRepository.getUsersPaginated(page, size, sortBy, direction);
+    }
+
+    public List<UserDTO> getUsers(int page, int size, String sortBy, String sortDir, String query) {
+        int offset = page * size;
+        return userRepository.searchUsers(query, size, offset, sortBy, sortDir);
+    }
+
+
 
 
 

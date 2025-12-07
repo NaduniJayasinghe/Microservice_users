@@ -126,5 +126,68 @@ public class UserRepository {
         return rows > 0;
     }
 
+    public List<UserDTO> getUsersPaginated(int page, int size, String sortBy, String direction) {
+
+        String sql = "SELECT id, first_name, last_name, email, phone " +
+                "FROM view_all_users " +
+                "ORDER BY " + sortBy + " " + direction + " " +
+                "LIMIT ? OFFSET ?";
+
+        int offset = page * size;
+
+        return jdbcTemplate.query(sql, (rs, rowNum) ->
+                        new UserDTO(
+                                rs.getLong("id"),
+                                rs.getString("first_name"),
+                                rs.getString("last_name"),
+                                rs.getString("email"),
+                                rs.getString("phone")
+                        ),
+                size, offset
+        );
+    }
+
+
+    // -------------------------------------------------------
+    // SEARCH USER
+    // -------------------------------------------------------
+
+    public List<UserDTO> searchUsers(String query, int limit, int offset, String sortBy, String sortDir) {
+
+        String baseSql = "SELECT id, first_name, last_name, email, phone FROM view_all_users ";
+
+        // If query exists → add WHERE clause
+        if (query != null && !query.isEmpty()) {
+            baseSql += "WHERE lower(first_name) LIKE ? OR lower(last_name) LIKE ? OR lower(email) LIKE ? ";
+        }
+
+        // Add sorting
+        baseSql += "ORDER BY " + sortBy + " " + sortDir + " ";
+
+        // Add pagination
+        baseSql += "LIMIT ? OFFSET ?";
+
+        Object[] params;
+
+        if (query != null && !query.isEmpty()) {
+            String q = "%" + query.toLowerCase() + "%";
+            params = new Object[]{ q, q, q, limit, offset };
+        } else {
+            params = new Object[]{ limit, offset };
+        }
+
+        return jdbcTemplate.query(baseSql, params, (rs, row) ->
+                new UserDTO(
+                        rs.getLong("id"),
+                        rs.getString("first_name"),
+                        rs.getString("last_name"),
+                        rs.getString("email"),
+                        rs.getString("phone")
+                )
+        );
+    }
+
+
+
 
 }

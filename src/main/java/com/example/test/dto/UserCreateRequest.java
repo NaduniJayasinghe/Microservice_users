@@ -15,7 +15,7 @@ public class UserCreateRequest {
     private String lastName;
 
     @NotBlank
-    @Email
+    @Email(message = "Email format is invalid")
     @Size(max = 255)
     private String email;
 
