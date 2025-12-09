@@ -20,8 +20,6 @@ public class UserController {
     @Autowired
     private UserService userService;
 
-    @Autowired
-    private JdbcTemplate jdbcTemplate;
 
     // CREATE
     @PostMapping

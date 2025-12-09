@@ -4,91 +4,108 @@ import com.example.test.dto.UserCreateRequest;
 import com.example.test.dto.UserDTO;
 import com.example.test.dto.UserUpdateRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
+import org.springframework.jdbc.core.SqlOutParameter;
 import org.springframework.jdbc.core.SqlParameter;
 import org.springframework.jdbc.core.simple.SimpleJdbcCall;
 import org.springframework.stereotype.Repository;
 
 import jakarta.annotation.PostConstruct;
 import java.sql.Types;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @Repository
 public class UserRepository {
 
     private final JdbcTemplate jdbcTemplate;
-    private SimpleJdbcCall createUserCall;
+    private SimpleJdbcCall createUserProcedureCall;
 
     public UserRepository(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    // -------------------------------------------------------11
-    // CREATE USING STORED FUNCTION
+    // -------------------------------------------------------
+    // COMMON MAPPER
+    // -------------------------------------------------------
+    private static final RowMapper<UserDTO> USER_ROW_MAPPER = (rs, rowNum) ->
+            new UserDTO(
+                    rs.getLong("id"),
+                    rs.getString("first_name"),
+                    rs.getString("last_name"),
+                    rs.getString("email"),
+                    rs.getString("phone"),
+                    rs.getTimestamp("created_at").toLocalDateTime()
+            );
+
+
+
+    // -------------------------------------------------------
+    // INIT STORED PROCEDURE CALL
     // -------------------------------------------------------
     @PostConstruct
     public void init() {
-        createUserCall = new SimpleJdbcCall(jdbcTemplate)
+        createUserProcedureCall = new SimpleJdbcCall(jdbcTemplate)
                 .withSchemaName("public")
-                .withFunctionName("create_user")
+                .withProcedureName("create_user_procedure")
                 .declareParameters(
                         new SqlParameter("p_first_name", Types.VARCHAR),
                         new SqlParameter("p_last_name", Types.VARCHAR),
                         new SqlParameter("p_email", Types.VARCHAR),
-                        new SqlParameter("p_phone", Types.VARCHAR)
+                        new SqlParameter("p_phone", Types.VARCHAR),
+                        new SqlOutParameter("new_id", Types.BIGINT)
+
                 );
     }
 
-    public Long createUser(UserCreateRequest req) {
+    // -------------------------------------------------------
+    // CREATE USER (STORED PROCEDURE)
+    // -------------------------------------------------------
+    public Long createUserUsingProcedure(UserCreateRequest req) {
+
         Map<String, Object> params = Map.of(
                 "p_first_name", req.getFirstName(),
                 "p_last_name", req.getLastName(),
                 "p_email", req.getEmail(),
                 "p_phone", req.getPhone()
+
         );
 
-        return createUserCall.executeFunction(Long.class, params);
+        Map<String, Object> result = createUserProcedureCall.execute(params);
+
+        Object idObj = result.get("new_id");
+
+        return (idObj == null) ? null : ((Number) idObj).longValue();
     }
 
+
     // -------------------------------------------------------
-    // GET ALL USERS (VIEW)
+    // GET ALL USERS
     // -------------------------------------------------------
     public List<UserDTO> getAllUsers() {
-        String sql = "SELECT id, first_name, last_name, email, phone FROM view_all_users";
-
-        return jdbcTemplate.query(sql, (rs, rowNum) ->
-                new UserDTO(
-                        rs.getLong("id"),
-                        rs.getString("first_name"),
-                        rs.getString("last_name"),
-                        rs.getString("email"),
-                        rs.getString("phone")
-                )
-        );
+        String sql = "SELECT id, first_name, last_name, email, phone, created_at FROM view_all_users";
+        return jdbcTemplate.query(sql, USER_ROW_MAPPER);
     }
 
+
     // -------------------------------------------------------
-    // GET USER BY ID (VIEW)
+    // GET USER BY ID (SAFE OPTIONAL)
     // -------------------------------------------------------
-    public UserDTO getUserById(Long id) {
+    public Optional<UserDTO> getUserById(Long id) {
+
         String sql = """
-                SELECT id, first_name, last_name, email, phone
-                FROM view_user_details
-                WHERE id = ?
-                """;
+            SELECT id, first_name, last_name, email, phone,created_at 
+            FROM view_user_details
+            WHERE id = ?
+        """;
 
-        return jdbcTemplate.queryForObject(sql, (rs, rowNum) ->
-                new UserDTO(
-                        rs.getLong("id"),
-                        rs.getString("first_name"),
-                        rs.getString("last_name"),
-                        rs.getString("email"),
-                        rs.getString("phone")
-                ), id);
+        List<UserDTO> list = jdbcTemplate.query(sql, USER_ROW_MAPPER, id);
+
+        return list.stream().findFirst();
     }
 
+
     // -------------------------------------------------------
-    // CHECK IF EMAIL ALREADY EXISTS FOR ANOTHER USER
+    // EMAIL EXISTS FOR ANOTHER USER
     // -------------------------------------------------------
     public boolean emailExistsForAnotherUser(String email, Long id) {
         String sql = "SELECT COUNT(*) FROM users WHERE email = ? AND id <> ?";
@@ -96,15 +113,17 @@ public class UserRepository {
         return count != null && count > 0;
     }
 
+
     // -------------------------------------------------------
-    // UPDATE USER (NORMAL UPDATE)
+    // UPDATE USER
     // -------------------------------------------------------
     public boolean updateUser(Long id, UserUpdateRequest req) {
+
         String sql = """
-                UPDATE users
-                SET first_name = ?, last_name = ?, email = ?, phone = ?
-                WHERE id = ?
-                """;
+            UPDATE users
+            SET first_name = ?, last_name = ?, email = ?, phone = ?
+            WHERE id = ?
+        """;
 
         int rows = jdbcTemplate.update(sql,
                 req.getFirstName(),
@@ -116,78 +135,82 @@ public class UserRepository {
         return rows > 0;
     }
 
+
     // -------------------------------------------------------
     // DELETE USER
     // -------------------------------------------------------
-
     public boolean deleteUser(Long id) {
         String sql = "DELETE FROM users WHERE id = ?";
         int rows = jdbcTemplate.update(sql, id);
         return rows > 0;
     }
 
-    public List<UserDTO> getUsersPaginated(int page, int size, String sortBy, String direction) {
+    // -------------------------------------------------------
+    // ALLOWED SORT FIELDS
+    // -------------------------------------------------------
+    private static final Map<String, String> SORTABLE_COLUMNS = Map.of(
+            "id", "id",
+            "firstName", "first_name",
+            "lastName", "last_name",
+            "email", "email",
+            "phone", "phone"
+    );
 
-        String sql = "SELECT id, first_name, last_name, email, phone " +
-                "FROM view_all_users " +
-                "ORDER BY " + sortBy + " " + direction + " " +
-                "LIMIT ? OFFSET ?";
+    private String validateSortBy(String sortBy) {
+        return SORTABLE_COLUMNS.getOrDefault(sortBy, "id");
+    }
 
-        int offset = page * size;
-
-        return jdbcTemplate.query(sql, (rs, rowNum) ->
-                        new UserDTO(
-                                rs.getLong("id"),
-                                rs.getString("first_name"),
-                                rs.getString("last_name"),
-                                rs.getString("email"),
-                                rs.getString("phone")
-                        ),
-                size, offset
-        );
+    private String validateDirection(String direction) {
+        return "desc".equalsIgnoreCase(direction) ? "DESC" : "ASC";
     }
 
 
     // -------------------------------------------------------
-    // SEARCH USER
+    // PAGINATION + SORTING
+    // -------------------------------------------------------
+    public List<UserDTO> getUsersPaginated(int page, int size, String sortBy, String direction) {
+
+        String sortCol = validateSortBy(sortBy);
+        String dir = validateDirection(direction);
+
+        int offset = Math.max(0, page) * Math.max(1, size);
+
+        String sql = "SELECT id, first_name, last_name, email, phone,created_at  " +
+                "FROM view_all_users " +
+                "ORDER BY " + sortCol + " " + dir + " " +
+                "LIMIT ? OFFSET ?";
+
+        return jdbcTemplate.query(sql, USER_ROW_MAPPER, size, offset);
+    }
+
+
+    // -------------------------------------------------------
+    // SEARCH + SORT + PAGINATION
     // -------------------------------------------------------
 
     public List<UserDTO> searchUsers(String query, int limit, int offset, String sortBy, String sortDir) {
 
-        String baseSql = "SELECT id, first_name, last_name, email, phone FROM view_all_users ";
+        String sortCol = validateSortBy(sortBy);
+        String dir = validateDirection(sortDir);
 
-        // If query exists → add WHERE clause
-        if (query != null && !query.isEmpty()) {
-            baseSql += "WHERE lower(first_name) LIKE ? OR lower(last_name) LIKE ? OR lower(email) LIKE ? ";
-        }
+        String q = (query == null || query.isBlank()) ? null : "%" + query.toLowerCase() + "%";
 
-        // Add sorting
-        baseSql += "ORDER BY " + sortBy + " " + sortDir + " ";
+        String where = (q != null)
+                ? "WHERE lower(first_name) LIKE ? OR lower(last_name) LIKE ? OR lower(email) LIKE ? "
+                : "";
 
-        // Add pagination
-        baseSql += "LIMIT ? OFFSET ?";
+        List<Object> params = new ArrayList<>();
+        if (q != null) params.addAll(List.of(q, q, q));
+        params.addAll(List.of(limit, offset));
 
-        Object[] params;
+        String sql = """
+        SELECT id, first_name, last_name, email, phone,created_at 
+        FROM view_all_users
+        """ + where +
+                "ORDER BY " + sortCol + " " + dir + " LIMIT ? OFFSET ?";
 
-        if (query != null && !query.isEmpty()) {
-            String q = "%" + query.toLowerCase() + "%";
-            params = new Object[]{ q, q, q, limit, offset };
-        } else {
-            params = new Object[]{ limit, offset };
-        }
-
-        return jdbcTemplate.query(baseSql, params, (rs, row) ->
-                new UserDTO(
-                        rs.getLong("id"),
-                        rs.getString("first_name"),
-                        rs.getString("last_name"),
-                        rs.getString("email"),
-                        rs.getString("phone")
-                )
-        );
+        return jdbcTemplate.query(sql, params.toArray(), USER_ROW_MAPPER);
     }
-
-
 
 
 }
