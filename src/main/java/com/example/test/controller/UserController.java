@@ -5,14 +5,15 @@ import com.example.test.dto.UserDTO;
 import com.example.test.dto.UserUpdateRequest;
 import com.example.test.service.UserService;
 import jakarta.validation.Valid;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/users")
 public class UserController {
@@ -20,50 +21,99 @@ public class UserController {
     @Autowired
     private UserService userService;
 
-
-    // CREATE
+    // -------------------------------------------------------------
+    // CREATE USER
+    // -------------------------------------------------------------
     @PostMapping
     public ResponseEntity<Long> createUser(@RequestBody @Valid UserCreateRequest request) {
+
+        log.info("Received CREATE USER request — email={}, firstName={}, lastName={}",
+                request.getEmail(), request.getFirstName(), request.getLastName());
+        log.debug("Full create request payload: {}", request);
+
         Long id = userService.createUser(request);
+
+        log.info("User created successfully with ID={}", id);
         return ResponseEntity.ok(id);
     }
 
-    // GET ALL (simple, non paginated)
+    // -------------------------------------------------------------
+    // GET ALL USERS (non-paginated)
+    // -------------------------------------------------------------
     @GetMapping("/all")
     public ResponseEntity<List<UserDTO>> getAllUsers() {
-        return ResponseEntity.ok(userService.getAllUsers());
+        log.info("Fetching ALL users (non-paginated)");
+        List<UserDTO> list = userService.getAllUsers();
+
+        log.debug("Total users fetched: {}", list.size());
+        return ResponseEntity.ok(list);
     }
 
-    // GET BY ID
+    // -------------------------------------------------------------
+    // GET USER BY ID
+    // -------------------------------------------------------------
     @GetMapping("/{id}")
-    public ResponseEntity<UserDTO> getUserById(@PathVariable Long id) {
-        return ResponseEntity.ok(userService.getUserById(id));
+    public ResponseEntity<?> getUserById(@PathVariable Long id) {
+
+        log.info("Fetching USER by ID={}", id);
+
+        UserDTO user = userService.getUserById(id);
+
+        // Handle NOT FOUND
+        if (user == null) {
+            log.warn("No user found for ID={}", id);
+            return ResponseEntity.status(404).body(Map.of("error", "User not found"));
+        }
+
+        // Log success
+        log.debug("Fetched user details for ID={} -> {}", id, user);
+        return ResponseEntity.ok(user);
     }
 
-    // UPDATE
+    // -------------------------------------------------------------
+    // UPDATE USER
+    // -------------------------------------------------------------
     @PutMapping("/{id}")
     public ResponseEntity<?> updateUser(
             @PathVariable Long id,
             @RequestBody @Valid UserUpdateRequest req
     ) {
+        log.info("Received UPDATE USER request for ID={}", id);
+        log.debug("Update request payload: {}", req);
+
         boolean updated = userService.updateUser(id, req);
+
         if (!updated) {
+            log.warn("UPDATE FAILED — User not found for ID={}", id);
             return ResponseEntity.status(404).body(Map.of("error", "User not found"));
         }
+
+        log.info("User updated successfully — ID={}", id);
         return ResponseEntity.ok(Map.of("message", "User updated successfully"));
     }
 
-    // DELETE
+    // -------------------------------------------------------------
+    // DELETE USER
+    // -------------------------------------------------------------
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteUser(@PathVariable Long id) {
+
+        log.info("Received DELETE USER request for ID={}", id);
+
         boolean deleted = userService.deleteUser(id);
+
         if (!deleted) {
+            log.warn("DELETE FAILED — User not found for ID={}", id);
             return ResponseEntity.status(404).body(Map.of("error", "User not found"));
         }
+
+        log.info("User deleted successfully — ID={}", id);
         return ResponseEntity.ok(Map.of("message", "User deleted successfully"));
     }
 
+    // -------------------------------------------------------------
     // PAGINATION + SORTING + SEARCH
+    // -------------------------------------------------------------
     @GetMapping
     public ResponseEntity<List<UserDTO>> getUsers(
             @RequestParam(defaultValue = "0") int page,
@@ -72,8 +122,12 @@ public class UserController {
             @RequestParam(defaultValue = "asc") String direction,
             @RequestParam(required = false) String query
     ) {
-        return ResponseEntity.ok(
-                userService.getUsers(page, size, sort, direction, query)
-        );
+        log.info("Fetching PAGINATED USERS — page={}, size={}, sort={}, direction={}, query={}",
+                page, size, sort, direction, query);
+
+        List<UserDTO> list = userService.getUsers(page, size, sort, direction, query);
+
+        log.debug("Paginated fetch returned {} users", list.size());
+        return ResponseEntity.ok(list);
     }
 }
