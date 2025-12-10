@@ -122,6 +122,7 @@ public class UserController {
             @RequestParam(defaultValue = "asc") String direction,
             @RequestParam(required = false) String query
     ) {
+
         log.info("Fetching PAGINATED USERS — page={}, size={}, sort={}, direction={}, query={}",
                 page, size, sort, direction, query);
 
