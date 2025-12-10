@@ -5,7 +5,6 @@ import com.example.test.dto.UserDTO;
 import com.example.test.dto.UserUpdateRequest;
 import com.example.test.exception.DuplicateEmailException;
 import com.example.test.repository.UserRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import lombok.extern.slf4j.Slf4j;
@@ -18,7 +17,7 @@ public class UserService {
 
     private final UserRepository userRepository;  // removed @Autowired
 
-    // Constructor Injection (Spring auto wires this)
+    // Constructor Injection
     public UserService(UserRepository userRepository) {
         this.userRepository = userRepository;
     }
