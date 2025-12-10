@@ -20,7 +20,7 @@ public class UserController {
 
     private final UserService userService;   // no @Autowired
 
-    // Constructor Injection (Spring will auto wire)
+    // Constructor Injection
     public UserController(UserService userService) {
         this.userService = userService;
     }
