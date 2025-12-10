@@ -18,9 +18,12 @@ import java.util.Map;
 @RequestMapping("/api/users")
 public class UserController {
 
-    @Autowired
-    private UserService userService;
+    private final UserService userService;   // no @Autowired
 
+    // Constructor Injection (Spring will auto wire)
+    public UserController(UserService userService) {
+        this.userService = userService;
+    }
     // -------------------------------------------------------------
     // CREATE USER
     // -------------------------------------------------------------

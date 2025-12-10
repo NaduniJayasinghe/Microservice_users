@@ -16,8 +16,12 @@ import java.util.List;
 @Service
 public class UserService {
 
-    @Autowired
-    private UserRepository userRepository;
+    private final UserRepository userRepository;  // removed @Autowired
+
+    // Constructor Injection (Spring auto wires this)
+    public UserService(UserRepository userRepository) {
+        this.userRepository = userRepository;
+    }
 
     // -------------------------------------------------------------
     // CREATE USER (Stored Procedure)
