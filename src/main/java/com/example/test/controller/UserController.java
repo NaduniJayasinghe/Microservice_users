@@ -1,5 +1,6 @@
 package com.example.test.controller;
 
+import com.example.test.dto.ApiResponse;
 import com.example.test.dto.UserCreateRequest;
 import com.example.test.dto.UserDTO;
 import com.example.test.dto.UserUpdateRequest;
@@ -7,6 +8,7 @@ import com.example.test.service.UserService;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -28,7 +30,8 @@ public class UserController {
     // CREATE USER
     // -------------------------------------------------------------
     @PostMapping
-    public ResponseEntity<Long> createUser(@RequestBody @Valid UserCreateRequest request) {
+    public ResponseEntity<ApiResponse> createUser(
+            @RequestBody @Valid UserCreateRequest request) {
 
         log.info("Received CREATE USER request — email={}, firstName={}, lastName={}",
                 request.getEmail(), request.getFirstName(), request.getLastName());
@@ -37,7 +40,14 @@ public class UserController {
         Long id = userService.createUser(request);
 
         log.info("User created successfully with ID={}", id);
-        return ResponseEntity.ok(id);
+
+        return ResponseEntity.ok(
+                new ApiResponse(
+                        "SUCCESS",
+                        id,
+                        "User created successfully"
+                )
+        );
     }
 
     // -------------------------------------------------------------
@@ -78,7 +88,7 @@ public class UserController {
     // UPDATE USER
     // -------------------------------------------------------------
     @PutMapping("/{id}")
-    public ResponseEntity<?> updateUser(
+    public ResponseEntity<ApiResponse> updateUser(
             @PathVariable Long id,
             @RequestBody @Valid UserUpdateRequest req
     ) {
@@ -89,31 +99,55 @@ public class UserController {
 
         if (!updated) {
             log.warn("UPDATE FAILED — User not found for ID={}", id);
-            return ResponseEntity.status(404).body(Map.of("error", "User not found"));
+
+            return ResponseEntity.status(404).body(
+                    new ApiResponse(
+                            "FAILURE",
+                            id,
+                            "User not found"
+                    )
+            );
         }
 
         log.info("User updated successfully — ID={}", id);
-        return ResponseEntity.ok(Map.of("message", "User updated successfully"));
+
+        return ResponseEntity.ok(
+                new ApiResponse(
+                        "SUCCESS",
+                        id,
+                        "User updated successfully"
+                )
+        );
     }
 
     // -------------------------------------------------------------
     // DELETE USER
     // -------------------------------------------------------------
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteUser(@PathVariable Long id) {
+
+    public ResponseEntity<ApiResponse> deleteUser(@PathVariable Long id) {
 
         log.info("Received DELETE USER request for ID={}", id);
 
-        boolean deleted = userService.deleteUser(id);
+        try {
+            boolean deleted = userService.deleteUser(id);
 
-        if (!deleted) {
-            log.warn("DELETE FAILED — User not found for ID={}", id);
-            return ResponseEntity.status(404).body(Map.of("error", "User not found"));
+            if (!deleted) {
+                log.warn("DELETE FAILED — User not found for ID={}", id);
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(new ApiResponse("FAILURE", id, "User not found"));
+            }
+
+            log.info("User deleted successfully — ID={}", id);
+            return ResponseEntity.ok(new ApiResponse("SUCCESS", id, "User deleted successfully"));
+
+        } catch (Exception ex) {
+            log.error("DELETE FAILED — Unexpected error for ID={}: {}", id, ex.getMessage(), ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ApiResponse("FAILURE", id, "Something went wrong: " + ex.getMessage()));
         }
-
-        log.info("User deleted successfully — ID={}", id);
-        return ResponseEntity.ok(Map.of("message", "User deleted successfully"));
     }
+
 
     // -------------------------------------------------------------
     // PAGINATION + SORTING + SEARCH

@@ -1,5 +1,6 @@
 package com.example.test.exception;
 
+import com.example.test.dto.ApiResponse;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -14,40 +15,45 @@ import java.util.Map;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(DuplicateKeyException.class)
-    public ResponseEntity<?> handleDuplicateKey(DuplicateKeyException ex) {
+    public ResponseEntity<ApiResponse> handleDuplicateKey(DuplicateKeyException ex) {
+
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
-                .body(Map.of(
-                        "error code",ex.getMessage(),
-                        "error message", "Email already exists"
+                .body(new ApiResponse(
+                        "FAILURE",
+                        null,
+                        "Email already exists"
                 ));
-    }
-
-    @ExceptionHandler(DuplicateEmailException.class)
-    public ResponseEntity<?> handleDuplicateEmail(DuplicateEmailException ex) {
-        return ResponseEntity.status(400).body(
-                Map.of("error", "Email already exists")
-        );
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<?> handleValidationErrors(MethodArgumentNotValidException ex) {
+    public ResponseEntity<ApiResponse> handleValidationErrors(MethodArgumentNotValidException ex) {
 
-        Map<String, String> errors = new HashMap<>();
-
-        ex.getBindingResult().getFieldErrors().forEach(error -> {
-            errors.put(error.getField(), error.getDefaultMessage());
-        });
+        String message = ex.getBindingResult()
+                .getFieldErrors()
+                .stream()
+                .findFirst()
+                .map(err -> err.getField() + " " + err.getDefaultMessage())
+                .orElse("Validation failed");
 
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
-                .body(Map.of(
-                        "status", 400,
-                        "errors", errors
+                .body(new ApiResponse(
+                        "FAILURE",
+                        null,
+                        message
                 ));
     }
 
-
-
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ApiResponse<Object>> handleGeneralError(Exception ex) {
+        return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ApiResponse<>(
+                        "FAILURE",
+                        null,
+                        "Something went wrong: " + ex.getMessage()
+                ));
+    }
 
 }
