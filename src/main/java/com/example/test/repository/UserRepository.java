@@ -20,14 +20,14 @@ import java.util.*;
 public class UserRepository {
 
     private final JdbcTemplate jdbcTemplate;
-    public SimpleJdbcCall createUserProcedureCall;
+    SimpleJdbcCall createUserProcedureCall;
 
     public UserRepository(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
     }
 
     // -------------------------------------------------------
-    // COMMON MAPPER
+    // COMMON MAPPER FOR VIEWS
     // -------------------------------------------------------
     private static final RowMapper<UserDTO> USER_ROW_MAPPER = (rs, rowNum) ->
             new UserDTO(
@@ -89,7 +89,7 @@ public class UserRepository {
     }
 
     // -------------------------------------------------------
-    // GET ALL USERS
+    // GET ALL USERS (VIEW)
     // -------------------------------------------------------
     public List<UserDTO> getAllUsers() {
         String sql = "SELECT id, first_name, last_name, email, phone, created_at FROM view_all_users";
@@ -103,7 +103,7 @@ public class UserRepository {
     }
 
     // -------------------------------------------------------
-    // GET USER BY ID
+    // GET USER BY ID (VIEW)
     // -------------------------------------------------------
     public Optional<UserDTO> getUserById(Long id) {
 
@@ -120,23 +120,23 @@ public class UserRepository {
         if (list.isEmpty()) {
             log.warn("Repository: No user found with ID={}", id);
         } else {
-            log.debug("Repository: User found for ID={}: {}", id, list.get(0));
+            log.debug("Repository: User found ID={} → {}", id, list.get(0));
         }
 
         return list.stream().findFirst();
     }
 
     // -------------------------------------------------------
-    // EMAIL EXISTS FOR ANOTHER USER
+    // CHECK DUPLICATE EMAIL (FOR UPDATE)
     // -------------------------------------------------------
     public boolean emailExistsForAnotherUser(String email, Long id) {
-        log.info("Repository: Checking duplicate email={} for other users (excluding ID={})", email, id);
+        log.info("Repository: Checking duplicate email={} excluding ID={}", email, id);
 
         String sql = "SELECT COUNT(*) FROM users WHERE email = ? AND id <> ?";
         Integer count = jdbcTemplate.queryForObject(sql, Integer.class, email, id);
 
         boolean exists = count != null && count > 0;
-        log.debug("Repository: Duplicate email check = {}", exists);
+        log.debug("Repository: Duplicate email exists? {}", exists);
 
         return exists;
     }
@@ -180,16 +180,38 @@ public class UserRepository {
         return rows > 0;
     }
 
+
+    // -------------------------------------------------------
+    // SORTING HELPERS
+    // -------------------------------------------------------
+    private static final Map<String, String> SORTABLE_COLUMNS = Map.of(
+            "id", "id",
+            "firstName", "first_name",
+            "lastName", "last_name",
+            "email", "email",
+            "phone", "phone",
+            "createdAt", "created_at" // Added sorting for timestamp
+    );
+
+    private String validateSortBy(String sortBy) {
+        return SORTABLE_COLUMNS.getOrDefault(sortBy, "id");
+    }
+
+    private String validateDirection(String direction) {
+        return "desc".equalsIgnoreCase(direction) ? "DESC" : "ASC";
+    }
+
     // -------------------------------------------------------
     // PAGINATION + SORTING
     // -------------------------------------------------------
     public List<UserDTO> getUsersPaginated(int page, int size, String sortBy, String direction) {
 
-        log.info("Repository: Fetching paginated users page={}, size={}, sort={}, direction={}",
+        log.info("Repository: Paginated fetch page={}, size={}, sort={}, direction={}",
                 page, size, sortBy, direction);
 
         String sortCol = validateSortBy(sortBy);
         String dir = validateDirection(direction);
+
         int offset = Math.max(0, page) * Math.max(1, size);
 
         String sql = """
@@ -210,7 +232,7 @@ public class UserRepository {
     // -------------------------------------------------------
     public List<UserDTO> searchUsers(String query, int limit, int offset, String sortBy, String sortDir) {
 
-        log.info("Repository: Searching users with query='{}', limit={}, offset={}, sort={}, direction={}",
+        log.info("Repository: Searching users query='{}', limit={}, offset={}, sort={}, direction={}",
                 query, limit, offset, sortBy, sortDir);
 
         String sortCol = validateSortBy(sortBy);
@@ -224,6 +246,7 @@ public class UserRepository {
 
         List<Object> params = new ArrayList<>();
         if (q != null) params.addAll(List.of(q, q, q));
+
         params.add(limit);
         params.add(offset);
 
@@ -241,22 +264,4 @@ public class UserRepository {
         return result;
     }
 
-    // -------------------------------------------------------
-    // ALLOWED SORT FIELDS + HELPERS
-    // -------------------------------------------------------
-    private static final Map<String, String> SORTABLE_COLUMNS = Map.of(
-            "id", "id",
-            "firstName", "first_name",
-            "lastName", "last_name",
-            "email", "email",
-            "phone", "phone"
-    );
-
-    private String validateSortBy(String sortBy) {
-        return SORTABLE_COLUMNS.getOrDefault(sortBy, "id");
-    }
-
-    private String validateDirection(String direction) {
-        return "desc".equalsIgnoreCase(direction) ? "DESC" : "ASC";
-    }
 }

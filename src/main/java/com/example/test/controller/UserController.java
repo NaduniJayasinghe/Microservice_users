@@ -119,17 +119,25 @@ public class UserController {
     public ResponseEntity<List<UserDTO>> getUsers(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
-            @RequestParam(defaultValue = "id") String sort,
+            @RequestParam(defaultValue = "id") String sortBy,
             @RequestParam(defaultValue = "asc") String direction,
-            @RequestParam(required = false) String query
+            @RequestParam(required = false, name = "q") String query
     ) {
 
-        log.info("Fetching PAGINATED USERS — page={}, size={}, sort={}, direction={}, query={}",
-                page, size, sort, direction, query);
+        log.info("Fetching PAGINATED USERS — page={}, size={}, sortBy={}, direction={}, query={}",
+                page, size, sortBy, direction, query);
 
-        List<UserDTO> list = userService.getUsers(page, size, sort, direction, query);
+        // SEARCH MODE
+        if (query != null && !query.isBlank()) {
+            List<UserDTO> filtered = userService.getUsers(page, size, sortBy, direction, query);
+            log.debug("Search results count: {}", filtered.size());
+            return ResponseEntity.ok(filtered);
+        }
 
-        log.debug("Paginated fetch returned {} users", list.size());
+        // PAGINATION ONLY
+        List<UserDTO> list = userService.getUsersPaginated(page, size, sortBy, direction);
+        log.debug("Pagination results count: {}", list.size());
         return ResponseEntity.ok(list);
     }
+
 }
